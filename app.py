@@ -34,9 +34,7 @@ def create_database():
 
 # Create the leads table
 def create_leads_table():
-    create_database()
-    create_leads_table()
-
+    
     connection = sqlite3.connect("messages.db")
     cursor = connection.cursor()
     cursor.execute("""
@@ -49,6 +47,9 @@ def create_leads_table():
     """)
     connection.commit()
     connection.close()
+create_database()
+create_leads_table()
+
 @app.route("/message", methods=["POST"])
 def receive_message():
 
