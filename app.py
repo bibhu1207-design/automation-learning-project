@@ -207,14 +207,14 @@ def receive_lead():
             event_id
         )
         return {"error": "Duplicate event"}, 409
-    except Exception:
+    except Exception as error:
         connection.rollback()
 
         logger.exception(
             "Lead processing failed | event_id=%s",
             event_id
         )
-
+        print ("DATABASE ERROR: ", error)
         return {"error": "Internal server error"}, 500
 
     finally:
