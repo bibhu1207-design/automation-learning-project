@@ -1,8 +1,10 @@
 from flask import Flask, request
-import sqlite3
 import os
 from dotenv import load_dotenv
 import logging
+import psycopg
+
+from database import get_connection, create_tables
 
 logging.basicConfig(
     filename="automation.log",
@@ -17,38 +19,8 @@ load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
 app = Flask(__name__)
-# Create the database and table
-def create_database():
-    connection = sqlite3.connect("messages.db")
 
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            message TEXT NOT NULL
-        )
-    """)
-    connection.commit()
-    connection.close()
-
-# Create the leads table
-def create_leads_table():
-    
-    connection = sqlite3.connect("messages.db")
-    cursor = connection.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS leads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_id TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            phone TEXT NOT NULL
-        )
-    """)
-    connection.commit()
-    connection.close()
-create_database()
-create_leads_table()
+create_tables()
 
 @app.route("/message", methods=["POST"])
 def receive_message():
@@ -68,11 +40,11 @@ def receive_message():
 
     message = data["message"]
 
-    connection = sqlite3.connect("messages.db")
+    connection = get_connection()
     cursor = connection.cursor()
 
     cursor.execute(
-        "INSERT INTO messages (message) VALUES (?)",
+        "INSERT INTO messages (message) VALUES (%s)",
         (message,)
     )
 
@@ -82,9 +54,10 @@ def receive_message():
     return {"message": "Message stored successfully"}, 201
 
 @app.route("/messages", methods=["GET"])
+
 def get_messages():
 
-    connection = sqlite3.connect("messages.db")
+    connection = get_connection()
     cursor = connection.cursor()
 
     cursor.execute("SELECT * FROM messages")
@@ -102,11 +75,11 @@ def update_message(message_id):
 
     new_message = request.json["message"]
 
-    connection = sqlite3.connect("messages.db")
+    connection = get_connection()
     cursor = connection.cursor()
 
     cursor.execute(
-        "UPDATE messages SET message = ? WHERE id = ?",
+        "UPDATE messages SET message = %s WHERE id = %s",
         (new_message, message_id)
     )
 
@@ -114,14 +87,15 @@ def update_message(message_id):
     connection.close()
 
     return "Message updated!"
+
 @app.route("/messages/<int:message_id>", methods=["DELETE"])
 def delete_message(message_id):
 
-    connection = sqlite3.connect("messages.db")
+    connection = get_connection()
     cursor = connection.cursor()
 
     cursor.execute(
-        "DELETE FROM messages WHERE id = ?",
+        "DELETE FROM messages WHERE id = %s",
         (message_id,)
     )
 
@@ -132,17 +106,17 @@ def delete_message(message_id):
 @app.route("/transaction-test", methods=["POST"])
 def transaction_test():
 
-    connection = sqlite3.connect("messages.db")
+    connection = get_connection()
     cursor = connection.cursor()
 
     try:
         cursor.execute(
-            "INSERT INTO messages (message) VALUES (?)",
+            "INSERT INTO messages (message) VALUES (%s)",
             ("Transaction test - message 1",)
         )
 
         cursor.execute(
-            "INSERT INTO messages (message) VALUES (?)",
+            "INSERT INTO messages (message) VALUES (%s)",
             ("Transaction test - message 2",)
         )
 
@@ -187,13 +161,13 @@ def receive_lead():
     event_id,
     name
 )
-    connection = sqlite3.connect("messages.db")
+    connection = get_connection()
     cursor = connection.cursor()
     try:
         cursor.execute(
             """
             INSERT INTO leads (event_id, name, phone)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
             """,
             (event_id, name, phone)
         )
@@ -203,7 +177,7 @@ def receive_lead():
             "Lead stored successfully | event_id=%s",
             event_id
         )
-    except sqlite3.IntegrityError:
+    except psycopg.errors.UniqueViolation:
         connection.rollback()
 
         logger.warning(
