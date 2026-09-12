@@ -34,6 +34,9 @@ def create_database():
 
 # Create the leads table
 def create_leads_table():
+    create_database()
+    create_leads_table()
+
     connection = sqlite3.connect("messages.db")
     cursor = connection.cursor()
     cursor.execute("""
@@ -228,11 +231,4 @@ def receive_lead():
     return {"message": "Lead received successfully"}, 201
 
 if __name__ == "__main__":
-    print("STEP 1")
-    create_database()
-
-    print("STEP 2")
-    create_leads_table()
-
-    print("STEP 3")
     app.run(debug=True, use_reloader=False)
