@@ -57,6 +57,9 @@ def receive_message():
 
 def get_messages():
 
+    api_key = request.headers.get("X-API-Key")
+    if api_key != API_KEY:
+        return {"error": "Unauthorized"}, 401
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -72,7 +75,9 @@ def get_messages():
 
 @app.route("/update/<int:message_id>", methods=["PUT"])
 def update_message(message_id):
-
+    api_key = request.headers.get("X-API-Key")
+    if api_key != API_KEY:
+        return {"error": "Unauthorized"}, 401
     new_message = request.json["message"]
 
     connection = get_connection()
@@ -90,7 +95,9 @@ def update_message(message_id):
 
 @app.route("/messages/<int:message_id>", methods=["DELETE"])
 def delete_message(message_id):
-
+    api_key = request.headers.get("X-API-Key")
+    if api_key != API_KEY:
+        return {"error": "Unauthorized"}, 401
     connection = get_connection()
     cursor = connection.cursor()
 
