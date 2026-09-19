@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request,render_template
 import os
 from dotenv import load_dotenv
 import logging
@@ -21,6 +21,9 @@ API_KEY = os.getenv("API_KEY")
 app = Flask(__name__)
 
 create_tables()
+@app.route("/", methods=["GET"])
+def home():
+    return render_template("index.html")
 
 @app.route("/message", methods=["POST"])
 def receive_message():
@@ -160,17 +163,38 @@ def receive_lead():
         return {"error": "phone is required"}, 400
 
     event_id = data["event_id"]
-    name = data["name"]
-    phone = data["phone"]
+    name = data["name"].strip()
+    phone = data["phone"].strip()
 
     logger.info(
-    "Lead received | event_id=%s | name=%s",
-    event_id,
-    name
-)
+        "Lead received | event_id=%s | name=%s",
+        event_id,
+        name
+    )
+
     connection = get_connection()
     cursor = connection.cursor()
+
     try:
+        # Check whether this phone number already exists
+        cursor.execute(
+            "SELECT id FROM leads WHERE phone = %s LIMIT 1",
+            (phone,)
+        )
+
+        existing_lead = cursor.fetchone()
+
+        if existing_lead:
+            logger.warning(
+                "Duplicate lead rejected | phone=%s",
+                phone
+            )
+
+            return {
+                "error": "Duplicate lead: phone number already exists"
+            }, 409
+
+        # Store new lead
         cursor.execute(
             """
             INSERT INTO leads (event_id, name, phone)
@@ -180,18 +204,22 @@ def receive_lead():
         )
 
         connection.commit()
+
         logger.info(
             "Lead stored successfully | event_id=%s",
             event_id
         )
+
     except psycopg.errors.UniqueViolation:
         connection.rollback()
 
         logger.warning(
-            "Duplicate lead rejected | event_id=%s",
+            "Duplicate event rejected | event_id=%s",
             event_id
         )
+
         return {"error": "Duplicate event"}, 409
+
     except Exception as error:
         connection.rollback()
 
@@ -199,7 +227,9 @@ def receive_lead():
             "Lead processing failed | event_id=%s",
             event_id
         )
-        print ("DATABASE ERROR: ", error)
+
+        print("DATABASE ERROR:", error)
+
         return {"error": "Internal server error"}, 500
 
     finally:
@@ -211,6 +241,5 @@ def receive_lead():
     print("Phone:", phone)
 
     return {"message": "Lead received successfully"}, 201
-
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
